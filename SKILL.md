@@ -18,10 +18,10 @@ Reads a grocery shopping list from a **GitHub Gist**, matches each item against 
 
 ---
 
-## Important: Coop.ch Cart Limitation
+## Important: Coop.ch Bot Protection
 
-Coop uses DataDome bot protection:
-- **Product search** works via the public JSON API
+Coop uses DataDome bot protection on all endpoints:
+- **Product search** uses **Brave Search API** (`site:coop.ch {query}`) — requires `BRAVE_API_KEY` env var
 - **Adding to cart** requires a real browser — use **Claude in Chrome** with the user's authenticated Coop session
 
 ---
@@ -172,7 +172,7 @@ If the user wants to add or change a favorite product:
 
 - **GitHub MCP unavailable:** Start a fresh conversation — GitHub is connected in Settings → Connectors
 - **Item not in favorites, not found on Coop:** Suggest Swiss German alternatives (`Hafermilch` → `Haferdrink`, `Paprika` → `Peperoni`, `Zwiebeln` → `Zwiebel`)
-- **Coop API blocked by DataDome:** Fall back to Claude in Chrome navigating `https://www.coop.ch/de/search/?q={item}` directly
+- **Brave Search returns no results:** Check that `BRAVE_API_KEY` is set; fall back to Claude in Chrome navigating `https://www.coop.ch/de/search/?q={item}` directly
 - **Cart button missing:** Product may be out of stock or online-unavailable — inform user, skip item, do NOT mark ✓
 
 ---

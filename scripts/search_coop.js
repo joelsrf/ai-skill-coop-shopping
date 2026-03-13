@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 /**
- * search_coop.js — Search coop.ch for grocery items.
+ * search_coop.js — Search coop.ch for grocery items via Brave Search API.
  *
  * Usage:
  *   echo '["Milch", "Brot"]' | node search_coop.js
  *   node search_coop.js '["Milch", "Brot"]'
+ *
+ * Required environment variable:
+ *   BRAVE_API_KEY  — Brave Search API subscription token
  *
  * Input:  JSON array of item strings (via stdin or first argument)
  * Output: JSON array of { query, results[] } objects
@@ -14,29 +17,17 @@
 
 const https = require("https");
 
-const COOP_SEARCH_URL = "https://www.coop.ch/de/search/";
-const LANG = "de";
-const MAX_RESULTS_PER_ITEM = 3;
+const BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search";
+const MAX_RESULTS = 5;
 
-/**
- * Make an HTTPS GET request and return the response body as a string.
- */
 function get(url, headers = {}) {
   return new Promise((resolve, reject) => {
-    const defaultHeaders = {
-      "User-Agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      Accept: "application/json, text/plain, */*",
-      "Accept-Language": "de-CH,de;q=0.9",
-      ...headers,
-    };
-
     const urlObj = new URL(url);
     const options = {
       hostname: urlObj.hostname,
       path: urlObj.pathname + urlObj.search,
       method: "GET",
-      headers: defaultHeaders,
+      headers: { Accept: "application/json", ...headers },
     };
 
     const req = https.request(options, (res) => {
@@ -46,118 +37,106 @@ function get(url, headers = {}) {
     });
 
     req.on("error", reject);
-    req.setTimeout(10000, () => {
-      req.destroy(new Error("Request timed out"));
-    });
+    req.setTimeout(15000, () => req.destroy(new Error("Request timed out")));
     req.end();
   });
 }
 
-/**
- * Search coop.ch for a single item query.
- * Returns an array of product objects.
- */
 async function searchCoop(query) {
+  const apiKey = process.env.BRAVE_API_KEY;
+  if (!apiKey) {
+    throw new Error("Missing BRAVE_API_KEY env var.\n  export BRAVE_API_KEY='your-key'");
+  }
+
   const params = new URLSearchParams({
-    q: query,
-    format: "json",
-    lang: LANG,
-    rows: String(MAX_RESULTS_PER_ITEM * 2), // fetch extra in case some are filtered
+    q: `site:coop.ch ${query}`,
+    count: "10", // fetch extra to find product pages among mixed results
+    country: "CH",
   });
 
-  const url = `${COOP_SEARCH_URL}?${params}`;
+  const url = `${BRAVE_SEARCH_URL}?${params}`;
+  const { status, body } = await get(url, {
+    "X-Subscription-Token": apiKey,
+  });
 
+  if (status === 401 || status === 403) {
+    throw new Error(`Brave API: Unauthorized — check your BRAVE_API_KEY (HTTP ${status})`);
+  }
+  if (status === 429) {
+    throw new Error("Brave API: Rate limit exceeded");
+  }
+  if (status !== 200) {
+    throw new Error(`Brave API returned HTTP ${status}`);
+  }
+
+  let data;
   try {
-    const { status, body } = await get(url);
+    data = JSON.parse(body);
+  } catch {
+    throw new Error("Brave API returned invalid JSON");
+  }
 
-    if (status === 200) {
-      try {
-        const data = JSON.parse(body);
-        return parseCoopResponse(data, query);
-      } catch {
-        // Response wasn't JSON — Coop may have returned HTML (DataDome block)
-        return [];
+  const webResults = data?.web?.results || [];
+  const queryLower = query.toLowerCase();
+
+  // Parse all product pages first
+  const products = [];
+  for (const item of webResults) {
+    const url = item.url || "";
+    if (!/\/p\/\d+/.test(url)) continue;
+    if (!url.startsWith("https://www.coop.ch/")) continue;
+
+    const rawTitle = item.title || "";
+    let name;
+    if (!rawTitle || rawTitle.toLowerCase().includes("request rejected")) {
+      // Fall back to URL slug: extract segment before /p/
+      const slugMatch = url.match(/\/([^/]+)\/p\/\d+/);
+      name = slugMatch
+        ? slugMatch[1].replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+        : "";
+    } else {
+      name = rawTitle
+        .replace(/\s+online kaufen\s*/i, "")
+        .replace(/\s*[\|–\-]\s*coop\.ch.*$/i, "")
+        .trim();
+    }
+
+    const desc = (item.description || "").replace(/<[^>]+>/g, "");
+    const priceMatch = desc.match(/CHF\s*([\d.,]+)|([\d.,]+)\s*CHF/);
+    const price = priceMatch
+      ? (priceMatch[1] || priceMatch[2]).replace(",", ".")
+      : null;
+
+    const pidMatch = url.match(/\/p\/(\d+)/);
+    const productId = pidMatch ? pidMatch[1] : "";
+
+    // Score: prefer products whose URL or name contains query word prefixes (min 4 chars)
+    const haystack = (url + " " + name).toLowerCase();
+    const queryWords = queryLower.split(/\s+/);
+    const score = queryWords.reduce((s, w) => {
+      // Try progressively shorter prefixes (min 4 chars) for fuzzy matching
+      for (let len = w.length; len >= 4; len--) {
+        if (haystack.includes(w.slice(0, len))) return s + len;
       }
-    }
+      return s;
+    }, 0);
 
-    if (status === 403 || status === 429) {
-      // DataDome blocked the request
-      throw new Error(`Coop blocked the request (HTTP ${status}). Try using Claude in Chrome.`);
-    }
-
-    return [];
-  } catch (err) {
-    if (err.message.includes("blocked")) throw err;
-    return [];
-  }
-}
-
-/**
- * Parse the JSON response from coop.ch search.
- * Coop's internal JSON structure varies — we handle the known formats.
- */
-function parseCoopResponse(data, query) {
-  const results = [];
-
-  // Format 1: { products: [...] }
-  const productList =
-    data?.products ||
-    data?.searchResults?.products ||
-    data?.data?.products ||
-    [];
-
-  for (const p of productList.slice(0, MAX_RESULTS_PER_ITEM)) {
-    const product = extractProduct(p);
-    if (product) results.push(product);
+    products.push({ name, brand: "", price, currency: "CHF", unit: "", productId, url, score });
   }
 
-  return results;
+  // Sort by relevance score (descending), return top MAX_RESULTS
+  products.sort((a, b) => b.score - a.score);
+  return products.slice(0, MAX_RESULTS).map(({ score: _score, ...p }) => p);
 }
 
-function extractProduct(p) {
-  if (!p) return null;
-
-  const name = p.name || p.title || p.productName || "";
-  if (!name) return null;
-
-  const price =
-    p.price?.value ??
-    p.price?.formattedValue?.replace(/[^0-9.]/g, "") ??
-    p.priceData?.value ??
-    null;
-
-  const productId = p.code || p.id || p.productId || "";
-  const url = productId
-    ? `https://www.coop.ch/de/p/${productId}`
-    : p.url
-    ? `https://www.coop.ch${p.url}`
-    : "";
-
-  return {
-    name,
-    brand: p.brand?.name || p.brandName || "",
-    price: price ? String(price) : null,
-    currency: "CHF",
-    unit: p.salesUnit || p.unit || p.quantityUnit || "",
-    productId,
-    url,
-  };
-}
-
-/**
- * Read stdin until EOF, then parse as JSON.
- */
 function readStdin() {
   return new Promise((resolve, reject) => {
     let data = "";
     process.stdin.setEncoding("utf8");
     process.stdin.on("data", (chunk) => (data += chunk));
     process.stdin.on("end", () => {
-      try {
-        resolve(JSON.parse(data));
-      } catch {
-        reject(new Error("Invalid JSON from stdin"));
-      }
+      try { resolve(JSON.parse(data)); }
+      catch { reject(new Error("Invalid JSON from stdin")); }
     });
     process.stdin.on("error", reject);
   });
@@ -165,11 +144,9 @@ function readStdin() {
 
 async function main() {
   let items;
-
   if (process.argv[2]) {
-    try {
-      items = JSON.parse(process.argv[2]);
-    } catch {
+    try { items = JSON.parse(process.argv[2]); }
+    catch {
       console.error("Error: first argument must be a JSON array of strings");
       process.exit(1);
     }
@@ -183,18 +160,17 @@ async function main() {
   }
 
   const output = [];
-
   for (const item of items) {
     process.stderr.write(`Searching: ${item}...\n`);
     try {
       const results = await searchCoop(item);
+      process.stderr.write(`  Found ${results.length} result(s)\n`);
       output.push({ query: item, results });
     } catch (err) {
       process.stderr.write(`  ⚠ ${err.message}\n`);
       output.push({ query: item, results: [], error: err.message });
     }
-    // Polite delay to avoid rate limiting
-    await new Promise((r) => setTimeout(r, 500));
+    await new Promise((r) => setTimeout(r, 300));
   }
 
   console.log(JSON.stringify(output, null, 2));
