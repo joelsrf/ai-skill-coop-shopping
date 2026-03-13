@@ -21,8 +21,13 @@ Reads a grocery shopping list from a **GitHub Gist**, matches each item against 
 ## Important: Coop.ch Bot Protection
 
 Coop uses DataDome bot protection on all endpoints:
-- **Product search** uses **Brave Search API** (`site:coop.ch {query}`) — requires `BRAVE_API_KEY` env var
+- **Product search** — always use the `search_coop` MCP tool first (calls Brave Search API under the hood). Only use the browser as a last resort if the MCP tool returns no results.
 - **Adding to cart** requires a real browser — use **Claude in Chrome** with the user's authenticated Coop session
+
+**Search priority order:**
+1. Favorites lookup (instant, no API call)
+2. `mcp__local-scripts__search_coop` MCP tool (Brave Search API, `site:coop.ch`)
+3. Claude in Chrome → `https://www.coop.ch/de/search/?q={item}` (only if MCP returns nothing)
 
 ---
 
@@ -91,17 +96,19 @@ For each pending shopping list item:
 - Check if any favorites key is contained in the item, OR the item is contained in a favorites key
 - If matched → **auto-selected**, note the exact product name
 
-**b) No favorites match → batch search via script:**
+**b) No favorites match → batch search via MCP tool:**
 
-Collect ALL unmatched items into a single array and run in one call:
+Collect ALL unmatched items into a single array and call the `search_coop` tool from the `local-scripts` MCP server in one call:
 
-```bash
-node ~/.claude/skills/coop-shopping-v2/scripts/search_coop.js '["Pasta", "Rapsöl", "Tofu"]'
+```
+mcp__local-scripts__search_coop({ items: ["Pasta", "Rapsöl", "Tofu"] })
 ```
 
-The script accepts a JSON array and returns results for all items in one run. Output is a JSON array of `{ query, results[] }` objects where each result has `name`, `brand`, `price`, `currency`, `unit`, `productId`, and `url`.
+The tool returns a JSON array of `{ query, results[] }` objects where each result has `name`, `brand`, `price`, `currency`, `unit`, `productId`, and `url`.
 
 Show top 3 results per unknown item and ask the user to pick.
+
+**Only use Claude in Chrome (browser) as fallback** when the MCP search returns no results for an item — navigate directly to `https://www.coop.ch/de/search/?q={item}` to find the product manually.
 
 ---
 
@@ -172,7 +179,7 @@ If the user wants to add or change a favorite product:
 
 - **GitHub MCP unavailable:** Start a fresh conversation — GitHub is connected in Settings → Connectors
 - **Item not in favorites, not found on Coop:** Suggest Swiss German alternatives (`Hafermilch` → `Haferdrink`, `Paprika` → `Peperoni`, `Zwiebeln` → `Zwiebel`)
-- **Brave Search returns no results:** Check that `BRAVE_API_KEY` is set; fall back to Claude in Chrome navigating `https://www.coop.ch/de/search/?q={item}` directly
+- **MCP search (`search_coop`) returns no results:** Fall back to Claude in Chrome navigating `https://www.coop.ch/de/search/?q={item}` directly. If the MCP tool is unavailable, run `node ~/.claude/skills/coop-shopping-v2/scripts/search_coop.js '["item"]'` as a last resort.
 - **Cart button missing:** Product may be out of stock or online-unavailable — inform user, skip item, do NOT mark ✓
 
 ---

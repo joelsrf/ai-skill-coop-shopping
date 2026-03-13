@@ -16,6 +16,19 @@
  */
 
 const https = require("https");
+const fs = require("fs");
+const path = require("path");
+
+// Load .env from project root (one level up from scripts/)
+const envPath = path.join(__dirname, "..", ".env");
+if (fs.existsSync(envPath)) {
+  fs.readFileSync(envPath, "utf8")
+    .split("\n")
+    .forEach((line) => {
+      const [key, ...rest] = line.split("=");
+      if (key && rest.length) process.env[key.trim()] ??= rest.join("=").trim();
+    });
+}
 
 const BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search";
 const MAX_RESULTS = 5;
