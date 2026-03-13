@@ -106,7 +106,7 @@ mcp__local-scripts__search_coop({ items: ["Pasta", "Rapsöl", "Tofu"] })
 
 The tool returns a JSON array of `{ query, results[] }` objects where each result has `name`, `brand`, `price`, `currency`, `unit`, `productId`, and `url`.
 
-Show top 3 results per unknown item and ask the user to pick.
+**Auto-select the top result** (highest relevance score) — do not ask the user to confirm. Only ask if the top result looks clearly wrong (e.g. wrong category, irrelevant name).
 
 **Only use Claude in Chrome (browser) as fallback** when the MCP search returns no results for an item — navigate directly to `https://www.coop.ch/de/search/?q={item}` to find the product manually.
 
@@ -119,19 +119,17 @@ Show a clear summary before starting cart operations:
 ```
 📋 Einkaufsplan — 5 Artikel
 
-✨ Favoriten (werden automatisch hinzugefügt):
+✨ Favoriten:
   • Hafermilch → Prix Garantie Haferdrink Vitamine & Calcium
   • Bananen → Naturaplan Bio Fairtrade Bananen ca. 1kg
-  • Eier → Naturaplan Bio Eier Freilandhaltung Schweiz
 
-❓ Keine Favoriten — bitte auswählen:
-  • Pasta
-    1. Barilla Spaghetti n°5 500g — CHF 1.80
-    2. Coop Bio Pasta Spaghetti 500g — CHF 2.50
-    3. De Cecco Spaghetti n°12 500g — CHF 3.20
+🔍 Beste Treffer (automatisch ausgewählt):
+  • Pasta → Barilla Spaghetti n°5 500g — CHF 1.80
+  • Rapsöl → Coop Rapsöl 1L — CHF 3.50
+  • Agavendicksaft → Naturaplan Bio Agavensirup 350g — CHF 4.95
 ```
 
-Once the user confirms / selects options for unknowns, proceed to cart.
+Present the plan and proceed immediately — no confirmation needed unless a result looks clearly wrong.
 
 ---
 
@@ -141,9 +139,10 @@ For each item, use the **product URL** returned by the search script (faster and
 
 1. Navigate directly to the product URL: `https://www.coop.ch/de/p/{productId}`
    - For favorites (no search result URL available): fall back to `https://www.coop.ch/de/search/?q={exact product name}`
-2. Find and click "In den Warenkorb" / "Zum Warenkorb hinzufügen"
-3. Confirm item was added (page feedback or cart counter update)
-4. Track successfully added items in memory for the Gist update in Step 6
+2. Check if the page shows a pre-set quantity (e.g. a pack of 6 wine bottles, a tray of eggs). **Leave the quantity as-is** — do not change it to 1.
+3. Find and click "In den Warenkorb" / "Zum Warenkorb hinzufügen"
+4. Confirm item was added (page feedback or cart counter update)
+5. Track successfully added items in memory for the Gist update in Step 6
 
 ---
 
@@ -163,6 +162,20 @@ Example:
 Before: Hafermilch       After: ✓ Hafermilch
 Before: Bananen          After: ✓ Bananen
 ```
+
+---
+
+## Adding Items to the Shopping List
+
+When the user asks to add one or more items to the shopping list:
+
+1. Use GitHub MCP `get_gist` (ID: `6ff611328971438a2bc2cafb44119536`) to read the current content
+2. For each item to add:
+   - Search existing lines for a case-insensitive match (with or without `✓ ` prefix)
+   - If found **with** `✓ ` → remove the `✓ ` prefix so the item becomes pending again
+   - If found **without** `✓ ` → already pending, no change needed
+   - If not found → append as a new line
+3. Use GitHub MCP `update_gist` once with the updated content
 
 ---
 

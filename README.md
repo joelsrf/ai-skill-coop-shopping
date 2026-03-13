@@ -17,12 +17,56 @@ A Claude Code skill that automates grocery shopping on [coop.ch](https://www.coo
 
 - [Claude Code](https://claude.ai/claude-code) with the `coop-shopping-v2` skill installed
 - GitHub MCP connector active (Settings → Connectors)
-- `local-scripts` MCP server running (see `~/.claude/mcp-local/`)
+- `local-scripts` MCP server configured in `claude_desktop_config.json` (see below)
 - A Brave Search API key → set in `.env`:
   ```
   BRAVE_API_KEY=your-key-here
   ```
 - An authenticated Coop account in Chrome (for adding to cart)
+
+### claude_desktop_config.json
+
+Add the following MCP servers to your `claude_desktop_config.json`. The `local-scripts` server runs the search script locally; `filesystem` gives Claude access to the skill files; `github` enables reading/writing Gists.
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "-e", "GITHUB_TOOLSETS",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "your-github-pat-here",
+        "GITHUB_TOOLSETS": "default,gists"
+      }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y", "@modelcontextprotocol/server-filesystem",
+        "/Users/you/.claude/skills",
+        "/Users/you/.claude/mcp-local/"
+      ]
+    },
+    "local-scripts": {
+      "command": "node",
+      "args": ["/Users/you/.claude/mcp-local/index.js"]
+    }
+  },
+  "computerUse": {
+    "network": {
+      "enabled": true,
+      "allowedDomains": ["coop.ch", "api.search.brave.com"]
+    }
+  }
+}
+```
+
+> Replace `your-github-pat-here` and `/Users/you/` with your actual values. The GitHub PAT needs `gist` read/write scope.
 
 ### Gists
 
