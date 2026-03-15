@@ -1,20 +1,23 @@
 ---
 name: coop-shopping-v2
-description: Read a grocery shopping list from a GitHub Gist using the GitHub MCP, match items against a favorites list (also a GitHub Gist), auto-select the favorite product if found, otherwise search coop.ch and show top results. Mark items as ✓ done in the shopping list Gist once added to cart. Use this skill whenever the user wants to shop at Coop, find Coop products, search coop.ch for grocery items, fill their Coop cart, check or update their shopping list, or sync the shopping list after adding items to cart. Trigger even if the user just says "do my Coop shopping", "find my groceries on Coop", or "update my shopping list".
+description: Read a grocery shopping list from a Google Drive Doc using the google-docs MCP, match items against a favorites list (a GitHub Gist), auto-select the favorite product if found, otherwise search coop.ch and show top results. Mark items as ✓ done in the shopping list Google Doc once added to cart. Use this skill whenever the user wants to shop at Coop, find Coop products, search coop.ch for grocery items, fill their Coop cart, check or update their shopping list, or sync the shopping list after adding items to cart. Trigger even if the user just says "do my Coop shopping", "find my groceries on Coop", or "update my shopping list".
 ---
 
 # Coop Shopping Skill
 
-Reads a grocery shopping list from a **GitHub Gist**, matches each item against a **favorites Gist**, auto-selects the preferred product when found, falls back to coop.ch search otherwise, and marks items `✓` done after cart addition.
+Reads a grocery shopping list from a **Google Drive Doc**, matches each item against a **favorites Gist** (GitHub), auto-selects the preferred product when found, falls back to coop.ch search otherwise, and marks items `✓` done after cart addition.
 
-## Gist Configuration
+## Configuration
 
-| Role | Gist ID | URL |
+| Role | Source | ID / URL |
 |---|---|---|
-| Shopping list | `6ff611328971438a2bc2cafb44119536` | https://gist.github.com/joelsrf/6ff611328971438a2bc2cafb44119536 |
-| Favorites | `c7fdebb823f5c3361116f8e2f96e7017` | https://gist.github.com/joelsrf/c7fdebb823f5c3361116f8e2f96e7017 |
+| Shopping list | Google Drive Doc | `14yMNj3pvjPk0uDGYDEnCXSyQXJMgspBm2efW-XxZ1og` |
+| Favorites | GitHub Gist | `c7fdebb823f5c3361116f8e2f96e7017` |
 
-**Requirement:** GitHub MCP connector must be active. It is already connected in Settings → Connectors. Start a fresh conversation if GitHub tools are unavailable.
+**Requirements:**
+- **google-docs MCP** connector must be active (for the shopping list)
+- **GitHub MCP** connector must be active (for the favorites Gist)
+Both are connected in Settings → Connectors. Start a fresh conversation if tools are unavailable.
 
 ---
 
@@ -34,7 +37,7 @@ Coop uses DataDome bot protection on all endpoints:
 ## Full Workflow
 
 ```
-1. Read shopping list Gist (GitHub MCP)
+1. Read shopping list Google Doc (google-docs MCP)
    ↓
 2. Read favorites Gist (GitHub MCP)
    ↓
@@ -45,22 +48,20 @@ Coop uses DataDome bot protection on all endpoints:
 5. Add to cart item by item via Claude in Chrome
    (navigate directly to product URL from search results)
    ↓
-6. After ALL items added: update shopping list Gist once via GitHub MCP
+6. After ALL items added: update shopping list Google Doc once via google-docs MCP
 ```
 
 ---
 
-## Step 1: Read Shopping List Gist
+## Step 1: Read Shopping List Google Doc
 
-Use GitHub MCP `get_gist` with ID: `6ff611328971438a2bc2cafb44119536`
+Use the google-docs MCP to read the document with ID: `14yMNj3pvjPk0uDGYDEnCXSyQXJMgspBm2efW-XxZ1og`
 
-Parse file content line by line:
+Parse the document content line by line:
 - Lines starting with `✓` → already done, **skip**
 - Lines starting with `#` → comments, **skip**
 - Blank lines → **skip**
 - All other lines → **pending items**
-
-Note the exact filename — needed for the update step.
 
 ---
 
@@ -142,20 +143,17 @@ For each item, use the **product URL** returned by the search script (faster and
 2. Check if the page shows a pre-set quantity (e.g. a pack of 6 wine bottles, a tray of eggs). **Leave the quantity as-is** — do not change it to 1.
 3. Find and click "In den Warenkorb" / "Zum Warenkorb hinzufügen"
 4. Confirm item was added (page feedback or cart counter update)
-5. Track successfully added items in memory for the Gist update in Step 6
+5. Track successfully added items in memory for the Google Doc update in Step 6
 
 ---
 
-## Step 6: Mark ✓ Done in Shopping List Gist (single update)
+## Step 6: Mark ✓ Done in Shopping List Google Doc (single update)
 
-After ALL items have been added to cart, do **one** Gist update:
+After ALL items have been added to cart, do **one** Google Doc update:
 
-1. Use GitHub MCP `get_gist` (ID: `6ff611328971438a2bc2cafb44119536`) to get the latest content
+1. Use the google-docs MCP to read the current document content (ID: `14yMNj3pvjPk0uDGYDEnCXSyQXJMgspBm2efW-XxZ1og`)
 2. For each successfully added item, prepend `✓ ` to its line (case-insensitive match)
-3. Use GitHub MCP `update_gist` once with the fully updated content:
-   - Gist ID: `6ff611328971438a2bc2cafb44119536`
-   - Filename: same as fetched (preserve exact filename)
-   - Content: full updated text with all ✓ marks applied
+3. Use the google-docs MCP to write the fully updated content back to the document
 
 Example:
 ```
@@ -169,13 +167,13 @@ Before: Bananen          After: ✓ Bananen
 
 When the user asks to add one or more items to the shopping list:
 
-1. Use GitHub MCP `get_gist` (ID: `6ff611328971438a2bc2cafb44119536`) to read the current content
+1. Use the google-docs MCP to read the current document (ID: `14yMNj3pvjPk0uDGYDEnCXSyQXJMgspBm2efW-XxZ1og`)
 2. For each item to add:
    - Search existing lines for a case-insensitive match (with or without `✓ ` prefix)
    - If found **with** `✓ ` → remove the `✓ ` prefix so the item becomes pending again
    - If found **without** `✓ ` → already pending, no change needed
    - If not found → append as a new line
-3. Use GitHub MCP `update_gist` once with the updated content
+3. Use the google-docs MCP to write the updated content back to the document
 
 ---
 
@@ -190,7 +188,8 @@ If the user wants to add or change a favorite product:
 
 ## Error Handling
 
-- **GitHub MCP unavailable:** Start a fresh conversation — GitHub is connected in Settings → Connectors
+- **google-docs MCP unavailable:** Start a fresh conversation — google-docs is connected in Settings → Connectors
+- **GitHub MCP unavailable:** Start a fresh conversation — GitHub is connected in Settings → Connectors (needed for favorites)
 - **Item not in favorites, not found on Coop:** Suggest Swiss German alternatives (`Hafermilch` → `Haferdrink`, `Paprika` → `Peperoni`, `Zwiebeln` → `Zwiebel`)
 - **MCP search (`search_coop`) returns no results:** Fall back to Claude in Chrome navigating `https://www.coop.ch/de/search/?q={item}` directly. If the MCP tool is unavailable, run `node ~/.claude/skills/coop-shopping-v2/scripts/search_coop.js '["item"]'` as a last resort.
 - **Cart button missing:** Product may be out of stock or online-unavailable — inform user, skip item, do NOT mark ✓
@@ -203,4 +202,5 @@ If the user wants to add or change a favorite product:
 - Coop searches work best in German (`de`)
 - The `search_coop.js` script uses only Node.js built-ins — no `npm install` needed
 - Prices are in CHF
-- All Gist reads and writes use GitHub MCP only — never `web_fetch` for Gist content
+- Shopping list reads and writes use google-docs MCP only — never `web_fetch` for document content
+- Favorites reads and writes use GitHub MCP only — never `web_fetch` for Gist content

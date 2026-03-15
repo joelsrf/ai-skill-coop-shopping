@@ -4,19 +4,20 @@ A Claude Code skill that automates grocery shopping on [coop.ch](https://www.coo
 
 ## What it does
 
-1. Reads your shopping list from a private GitHub Gist
+1. Reads your shopping list from a Google Drive Doc
 2. Matches items against a favorites Gist (preferred products you've saved)
 3. Searches coop.ch for unmatched items via the Brave Search API
 4. Presents a shopping plan and asks you to confirm/choose products
 5. Adds items to your Coop cart using Claude in Chrome (your authenticated browser session)
-6. Marks completed items with ✓ in the shopping list Gist
+6. Marks completed items with ✓ in the shopping list Google Doc
 
 ## Setup
 
 ### Requirements
 
 - [Claude Code](https://claude.ai/claude-code) with the `coop-shopping-v2` skill installed
-- GitHub MCP connector active (Settings → Connectors)
+- **google-docs MCP** connector active (Settings → Connectors) — for the shopping list
+- **GitHub MCP** connector active (Settings → Connectors) — for the favorites Gist
 - `local-scripts` MCP server configured in `claude_desktop_config.json` (see below)
 - A Brave Search API key → set in `.env`:
   ```
@@ -68,14 +69,14 @@ Add the following MCP servers to your `claude_desktop_config.json`. The `local-s
 
 > Replace `your-github-pat-here` and `/Users/you/` with your actual values. The GitHub PAT needs `gist` read/write scope.
 
-### Gists
+### Shopping List & Favorites
 
-| Role | Gist |
+| Role | Source |
 |---|---|
-| Shopping list | `gist.github.com/joelsrf/6ff611328971438a2bc2cafb44119536` |
-| Favorites | `gist.github.com/joelsrf/c7fdebb823f5c3361116f8e2f96e7017` |
+| Shopping list | Google Drive Doc `14yMNj3pvjPk0uDGYDEnCXSyQXJMgspBm2efW-XxZ1og` |
+| Favorites | GitHub Gist `gist.github.com/joelsrf/c7fdebb823f5c3361116f8e2f96e7017` |
 
-The **shopping list** is a plain text file, one item per line. Lines prefixed with `✓` are done, `#` are comments.
+The **shopping list** is a plain text Google Doc, one item per line. Lines prefixed with `✓` are done, `#` are comments.
 
 The **favorites** file is a Markdown table mapping search terms to preferred product names:
 
