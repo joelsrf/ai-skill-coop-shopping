@@ -7,7 +7,7 @@ A Claude Code skill that automates grocery shopping on [coop.ch](https://www.coo
 1. Reads your shopping list from a Google Drive Doc
 2. Matches items against a favorites Gist (preferred products you've saved)
 3. Searches coop.ch for unmatched items via the Brave Search API
-4. Presents a shopping plan and asks you to confirm/choose products
+4. Presents a shopping plan and proceeds automatically (no confirmation needed)
 5. Adds items to your Coop cart using Claude in Chrome (your authenticated browser session)
 6. Marks completed items with ✓ in the shopping list Google Doc
 
@@ -32,6 +32,14 @@ Add the following MCP servers to your `claude_desktop_config.json`. The `local-s
 ```json
 {
   "mcpServers": {
+    "google-docs": {
+      "command": "npx",
+      "args": ["-y", "@a-bonus/google-docs-mcp"],
+      "env": {
+        "GOOGLE_CLIENT_ID": "your-google-client-id",
+        "GOOGLE_CLIENT_SECRET": "your-google-client-secret"
+      }
+    },
     "github": {
       "command": "docker",
       "args": [
