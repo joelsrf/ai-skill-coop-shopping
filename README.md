@@ -81,8 +81,8 @@ Add the following MCP servers to your `claude_desktop_config.json`. The `local-s
 
 | Role | Source |
 |---|---|
-| Shopping list | Google Drive Doc `14yMNj3pvjPk0uDGYDEnCXSyQXJMgspBm2efW-XxZ1og` |
-| Favorites | GitHub Gist `gist.github.com/joelsrf/c7fdebb823f5c3361116f8e2f96e7017` |
+| Shopping list | Google Drive Doc `DOCUMENTID` |
+| Favorites | GitHub Gist `GISTURL` |
 
 The **shopping list** is a plain text Google Doc, one item per line. Lines prefixed with `✓` are done, `#` are comments.
 
