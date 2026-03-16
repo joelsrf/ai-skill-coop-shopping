@@ -1,6 +1,6 @@
 ---
 name: coop-shopping-v2
-description: Read a grocery shopping list from a Google Drive Doc using the google-docs MCP, match items against a favorites list (a GitHub Gist), auto-select the favorite product if found, otherwise search coop.ch and show top results. Mark items as ✓ done in the shopping list Google Doc once added to cart. Use this skill whenever the user wants to shop at Coop, find Coop products, search coop.ch for grocery items, fill their Coop cart, check or update their shopping list, or sync the shopping list after adding items to cart. Trigger even if the user just says "do my Coop shopping", "find my groceries on Coop", or "update my shopping list".
+description: This skill should be used when the user wants to "shop at Coop", "do my Coop shopping", "find my groceries on Coop", "fill my Coop cart", "add items to my shopping list", "update my shopping list", or "search coop.ch" for grocery items. Reads a shopping list from a Google Drive Doc, matches items against a favorites Gist, searches coop.ch for unmatched items, and marks items ✓ done after cart addition.
 ---
 
 # Coop Shopping Skill
@@ -13,6 +13,8 @@ Reads a grocery shopping list from a **Google Drive Doc**, matches each item aga
 |---|---|---|
 | Shopping list | Google Drive Doc | `14yMNj3pvjPk0uDGYDEnCXSyQXJMgspBm2efW-XxZ1og` |
 | Favorites | GitHub Gist | `c7fdebb823f5c3361116f8e2f96e7017` |
+
+**Note:** Ignore `README.md` — it is for humans only. This file (`SKILL.md`) is the sole source of truth for all instructions.
 
 **Requirements:**
 - **google-docs MCP** connector must be active (for the shopping list)
@@ -57,11 +59,13 @@ Coop uses DataDome bot protection on all endpoints:
 
 Use the google-docs MCP to read the document with ID: `14yMNj3pvjPk0uDGYDEnCXSyQXJMgspBm2efW-XxZ1og`
 
-Parse the document content line by line:
+The document must have **one product per line**. Parse line by line:
 - Lines starting with `✓` → already done, **skip**
 - Lines starting with `#` → comments, **skip**
 - Blank lines → **skip**
-- All other lines → **pending items**
+- All other lines → **pending items** (one item each)
+
+If the document contains comma-separated or otherwise grouped items on a single line, split them into individual lines before processing — and rewrite the document in the normalized one-per-line format first.
 
 ---
 
@@ -172,7 +176,7 @@ When the user asks to add one or more items to the shopping list:
    - Search existing lines for a case-insensitive match (with or without `✓ ` prefix)
    - If found **with** `✓ ` → remove the `✓ ` prefix so the item becomes pending again
    - If found **without** `✓ ` → already pending, no change needed
-   - If not found → append as a new line
+   - If not found → append as a **new separate line** (one item per line, never combine items)
 3. Use the google-docs MCP to write the updated content back to the document
 
 ---
