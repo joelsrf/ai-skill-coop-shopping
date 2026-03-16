@@ -24,6 +24,7 @@ A Claude Code skill that automates grocery shopping on [coop.ch](https://www.coo
   BRAVE_API_KEY=your-key-here
   ```
 - An authenticated Coop account in Chrome (for adding to cart)
+- Remove the README from the folder, it's not best practice to have this in the Skill folder
 
 ### claude_desktop_config.json
 
