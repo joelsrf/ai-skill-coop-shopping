@@ -1,6 +1,6 @@
 ---
 name: coop-shopping-v2
-description: This skill should be used when the user wants to "shop at Coop", "do my Coop shopping", "find my groceries on Coop", "fill my Coop cart", "add items to my shopping list", "update my shopping list", or "search coop.ch" for grocery items. Reads a shopping list from a Google Drive Doc, matches items against a favorites Gist, searches coop.ch for unmatched items, and marks items ✓ done after cart addition.
+description: This skill should be used when the user wants to "shop at Coop", "do my Coop shopping", "find my groceries on Coop", "fill my Coop cart", "add items to my shopping list", "update my shopping list", or "search coop.ch" for grocery items. Reads a shopping list from a Google Drive Doc (bullet point list, one item per bullet), matches items against a favorites Gist, searches coop.ch for unmatched items, and marks items ✓ done after cart addition.
 ---
 
 # Coop Shopping Skill
