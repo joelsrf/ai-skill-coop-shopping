@@ -5,7 +5,7 @@ description: This skill should be used when the user wants to "shop at Coop", "d
 
 # Coop Shopping Skill
 
-Reads a grocery shopping list from a **Google Drive Doc**, matches each item against a **favorites Gist** (GitHub), auto-selects the preferred product when found, falls back to coop.ch search otherwise, and marks items `✓` done after cart addition.
+Reads a grocery shopping list from a **Google Drive Doc** (formatted as a bullet point list, one item per bullet), matches each item against a **favorites Gist** (GitHub), auto-selects the preferred product when found, falls back to coop.ch search otherwise, and marks items `✓` done after cart addition.
 
 ## Configuration
 
@@ -59,13 +59,14 @@ Coop uses DataDome bot protection on all endpoints:
 
 Use the google-docs MCP to read the document with ID: `14yMNj3pvjPk0uDGYDEnCXSyQXJMgspBm2efW-XxZ1og`
 
-The document must have **one product per line**. Parse line by line:
-- Lines starting with `✓` → already done, **skip**
+The document is a **bullet point list** — one item per bullet. Parse line by line:
+- Bullet lines start with `-` or `•` (Google Docs default bullet character)
+- Lines starting with `✓` (with or without a leading bullet) → already done, **skip**
 - Lines starting with `#` → comments, **skip**
 - Blank lines → **skip**
-- All other lines → **pending items** (one item each)
+- All other bullet lines → **pending items** — strip the leading `-`/`•` and any surrounding whitespace to get the raw item name
 
-If the document contains comma-separated or otherwise grouped items on a single line, split them into individual lines before processing — and rewrite the document in the normalized one-per-line format first.
+If the document contains comma-separated or otherwise grouped items on a single bullet, split them into individual bullets before processing — and rewrite the document in the normalized one-per-bullet format first.
 
 ---
 
@@ -159,10 +160,11 @@ After ALL items have been added to cart, do **one** Google Doc update:
 2. For each successfully added item, prepend `✓ ` to its line (case-insensitive match)
 3. Use the google-docs MCP to write the fully updated content back to the document
 
-Example:
+Preserve the bullet character and prepend `✓ ` after it:
+
 ```
-Before: Hafermilch       After: ✓ Hafermilch
-Before: Bananen          After: ✓ Bananen
+Before: - Hafermilch       After: - ✓ Hafermilch
+Before: - Bananen          After: - ✓ Bananen
 ```
 
 ---
@@ -174,9 +176,9 @@ When the user asks to add one or more items to the shopping list:
 1. Use the google-docs MCP to read the current document (ID: `14yMNj3pvjPk0uDGYDEnCXSyQXJMgspBm2efW-XxZ1og`)
 2. For each item to add:
    - Search existing lines for a case-insensitive match (with or without `✓ ` prefix)
-   - If found **with** `✓ ` → remove the `✓ ` prefix so the item becomes pending again
+   - If found **with** `✓ ` → remove the `✓ ` so the item becomes pending again (keep the bullet character)
    - If found **without** `✓ ` → already pending, no change needed
-   - If not found → append as a **new separate line** (one item per line, never combine items)
+   - If not found → append as a **new bullet line** (e.g. `- Hafermilch`), one item per bullet, never combine items
 3. Use the google-docs MCP to write the updated content back to the document
 
 ---
